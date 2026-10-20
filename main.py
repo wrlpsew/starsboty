@@ -138,7 +138,7 @@ async def show_premium(callback: types.CallbackQuery):
     )
     await callback.message.edit_text(text, reply_markup=premium_keyboard, parse_mode="Markdown")
 
-# --- PREMIUM TUGMALARI BOSILGANDA ISHLaydigan QISM ---
+# --- PREMIUM TUGMALARI BOSILGANDA ---
 @dp.callback_query(F.data.startswith("prem_"))
 async def process_premium_buy(callback: types.CallbackQuery):
     plan = callback.data.split("_")[1]
@@ -154,14 +154,23 @@ async def process_premium_buy(callback: types.CallbackQuery):
     else:
         plan_name = "Telegram Premium"
 
+    # Mijozning username'i bormi-yo'qligini tekshiramiz
+    user = callback.from_user
+    if user.username:
+        user_link = f"@{user.username}"
+    else:
+        # Username bo'lmasa ismini bosiladigan ssilka qilamiz
+        user_link = f"<a href='tg://user?id={user.id}'>{user.first_name}</a> (Username yo'q)"
+
     # Adminga xabar yuborish
     admin_text = (
         f"💎 YANGI PREMIUM BUYURTMA!\n"
-        f"👤 Mijoz: @{callback.from_user.username} (ID: {callback.from_user.id})\n"
+        f"👤 Mijoz: {user_link}\n"
+        f"🆔 ID: {user.id}\n"
         f"📦 Reja: {plan_name}\n"
         f"Mijoz bilan bog'lanib, to'lov va faollashtirishni amalga oshiring!"
     )
-    await bot.send_message(chat_id=ADMIN_ID, text=admin_text)
+    await bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode="HTML")
 
     # Mijozga javob
     await callback.message.edit_text(
@@ -209,11 +218,18 @@ async def pre_checkout_process(pre_checkout: PreCheckoutQuery):
 @dp.message(F.successful_payment)
 async def successful_payment_process(message: types.Message):
     amount = message.successful_payment.invoice_payload.split("_")[1]
+    user = message.from_user
+    if user.username:
+        user_link = f"@{user.username}"
+    else:
+        user_link = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
+
     admin_text = (f"✅ YANGI TO'LOV (CLICK)!\n"
-                  f"👤 Mijoz: @{message.from_user.username} (ID: {message.from_user.id})\n"
+                  f"👤 Mijoz: {user_link}\n"
+                  f"🆔 ID: {user.id}\n"
                   f"💰 Xarid qildi: {amount} Stars\n"
                   f"To'lov muvaffaqiyatli o'tdi. Mijozga yulduzchalarni tashlab bering!")
-    await bot.send_message(chat_id=ADMIN_ID, text=admin_text)
+    await bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode="HTML")
     await message.answer("✅ To'lovingiz qabul qilindi!\nTez orada adminga xabar boradi va yulduzchalar profilingizga yuboriladi.")
 
 async def main():
@@ -227,4 +243,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
+                   
