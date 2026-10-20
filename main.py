@@ -3,7 +3,7 @@ import logging
 import sqlite3
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand, LabeledPrice, PreCheckoutQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, BotCommand, LabeledPrice, PreCheckoutQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
@@ -113,7 +113,7 @@ main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="👨‍💻 Admin bilan bog'lanish", callback_data="menu_admin")]
 ])
 
-# PREMIUM BO'LIMI MENYUSI (Alohida)
+# PREMIUM BO'LIMI MENYUSI
 premium_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💎 1 Month (Login) - 42 000 UZS", callback_data="prem_1")],
     [InlineKeyboardButton(text="💎 3 Months - 165 000 UZS", callback_data="prem_3")],
@@ -130,8 +130,17 @@ invoice_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⬅️ Orqaga (Bekor qilish)", callback_data="cancel_invoice")]
 ])
 
-# Admin uchun chegirma tanlash tugmalari
-def get_admin_keyboard():
+# Admin pastki klaviaturasi (Siz rasmda ko'rsatgandek pastda chiqadi)
+admin_reply_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="🔥 Chegirma berish"), KeyboardButton(text="📢 Xabar yuborish")],
+        [KeyboardButton(text="🚪 Admin paneldan chiqish")]
+    ],
+    resize_keyboard=True
+)
+
+# Admin uchun chegirma tanlash inline tugmalari
+def get_admin_discount_keyboard():
     current = get_discount()
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -146,8 +155,10 @@ def get_admin_keyboard():
     ])
 
 @dp.message(Command("start"))
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()
     add_user(message.from_user.id, message.from_user.username)
+    # Oddiy foydalanuvchiga kirganda pastdagi admin klaviaturasi bo'lsa o'chiramiz
     await message.answer("Salom! Telegram xizmatlari do'koniga xush kelibsiz.\nQuyidagi bo'limlardan birini tanlang:", reply_markup=main_menu)
 
 @dp.message(Command("admin"))
@@ -157,12 +168,36 @@ async def cmd_admin(message: types.Message, state: FSMContext):
         users_count = len(get_all_users())
         current_disc = get_discount()
         text = (
-            f"👑 **Admin panel!**\n"
-            f"📊 Mijozlar: {users_count} ta\n"
-            f"🔥 Stars bo'yicha hozirgi chegirma: **{current_disc}%**\n\n"
-            f"👇 Chegirma foizini tanlang yoki xabar yuborish uchun matn/rasm tashlang:"
+            f"👑 **Admin panelga xush kelibsiz!**\n"
+            f"📊 Jami mijozlar: {users_count} ta\n"
+            f"🔥 Hozirgi chegirma: **{current_disc}%**\n\n"
+            f"Pastdagi tugmalar yordamida kerakli bo'limni tanlang:"
         )
-        await message.answer(text, reply_markup=get_admin_keyboard(), parse_mode="Markdown")
+        await message.answer(text, reply_markup=admin_reply_kb, parse_mode="Markdown")
+
+# Pastdagi tugmalar bosilganda ishlaydigan qism
+@dp.message(F.text == "🔥 Chegirma berish")
+async def admin_discount_menu(message: types.Message):
+    if message.from_user.id == ADMIN_ID:
+        current_disc = get_discount()
+        await message.answer(
+            f"🔥 Hozirgi chegirma: **{current_disc}%**\nKerakli chegirma foizini tanlang:",
+            reply_markup=get_admin_discount_keyboard(),
+            parse_mode="Markdown"
+        )
+
+@dp.message(F.text == "📢 Xabar yuborish")
+async def admin_broadcast_prompt(message: types.Message, state: FSMContext):
+    if message.from_user.id == ADMIN_ID:
+        await message.answer("⏳ Barcha foydalanuvchilarga yubormoqchi bo'lgan xabaringizni (matn, rasm yoki video) yuboring:")
+        await state.set_state(AdminPanel.xabar_kutish)
+
+@dp.message(F.text == "🚪 Admin paneldan chiqish")
+async def admin_exit(message: types.Message, state: FSMContext):
+    if message.from_user.id == ADMIN_ID:
+        await state.clear()
+        await message.answer("🚪 Admin paneldan chiqildi.", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer("Asosiy menyu:", reply_markup=main_menu)
 
 @dp.callback_query(F.data.startswith("set_disc_"))
 async def process_set_discount_callback(callback: types.CallbackQuery):
@@ -170,31 +205,29 @@ async def process_set_discount_callback(callback: types.CallbackQuery):
         percent = int(callback.data.split("_")[2])
         set_discount(percent)
         current_disc = get_discount()
-        users_count = len(get_all_users())
         
         text = (
-            f"👑 **Admin panel!**\n"
-            f"📊 Mijozlar: {users_count} ta\n"
-            f"🔥 Stars bo'yicha hozirgi chegirma: **{current_disc}%** (Muvaffaqiyatli o'rnatildi! ✅)\n\n"
-            f"👇 Chegirma foizini tanlang yoki xabar yuborish uchun matn/rasm tashlang:"
+            f"🔥 Hozirgi chegirma: **{current_disc}%** (Muvaffaqiyatli o'rnatildi! ✅)\n"
+            f"Boshqa foiz tanlashingiz mumkin:"
         )
-        await callback.message.edit_text(text, reply_markup=get_admin_keyboard(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=get_admin_discount_keyboard(), parse_mode="Markdown")
         await callback.answer(f"Chegirma {percent}% ga o'zgartirildi!")
 
 @dp.message(AdminPanel.xabar_kutish)
 async def send_broadcast(message: types.Message, state: FSMContext):
-    users = get_all_users()
-    count = 0
-    await message.answer("⏳ Xabar yuborilmoqda...")
-    for user_id in users:
-        try:
-            await bot.copy_message(chat_id=user_id, from_chat_id=message.chat.id, message_id=message.message_id)
-            count += 1
-            await asyncio.sleep(0.05)
-        except:
-            pass
-    await message.answer(f"✅ Xabar jami {count} ta foydalanuvchiga yuborildi!")
-    await state.clear()
+    if message.from_user.id == ADMIN_ID:
+        users = get_all_users()
+        count = 0
+        await message.answer("⏳ Xabar yuborilmoqda...")
+        for user_id in users:
+            try:
+                await bot.copy_message(chat_id=user_id, from_chat_id=message.chat.id, message_id=message.message_id)
+                count += 1
+                await asyncio.sleep(0.05)
+            except:
+                pass
+        await message.answer(f"✅ Xabar jami {count} ta foydalanuvchiga yuborildi!", reply_markup=admin_reply_kb)
+        await state.clear()
 
 # --- STARS BO'LIMI ---
 @dp.callback_query(F.data == "menu_stars")
@@ -325,3 +358,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
