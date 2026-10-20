@@ -18,7 +18,26 @@ cursor.execute('''
         username TEXT
     )
 ''')
+
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+''')
 conn.commit()
+
+cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('discount', '0')")
+conn.commit()
+
+def set_discount(percent: int):
+    cursor.execute("UPDATE settings SET value = ? WHERE key = 'discount'", (str(percent),))
+    conn.commit()
+
+def get_discount() -> int:
+    cursor.execute("SELECT value FROM settings WHERE key = 'discount'")
+    row = cursor.fetchone()
+    return int(row[0]) if row else 0
 
 def add_user(user_id, username):
     try:
@@ -43,38 +62,58 @@ dp = Dispatcher()
 class AdminPanel(StatesGroup):
     xabar_kutish = State()
 
-# --- NARXLAR LUG'ATI ---
-STARS_PRICES = {
-    "50": 10900 * 100,
-    "75": 16350 * 100,
-    "100": 21800 * 100,
-    "150": 32700 * 100,
-    "200": 43600 * 100,
-    "250": 54500 * 100,
-    "300": 65400 * 100,
-    "400": 87200 * 100,
-    "500": 109000 * 100,
-    "750": 163500 * 100,
-    "1000": 218000 * 100
+# --- STARS ASL NARXLARI ---
+BASE_STARS_PRICES = {
+    "50": 10900,
+    "75": 16350,
+    "100": 21800,
+    "150": 32700,
+    "200": 43600,
+    "250": 54500,
+    "300": 65400,
+    "400": 87200,
+    "500": 109000,
+    "750": 163500,
+    "1000": 218000
 }
 
-# --- TUGMALAR (MENYULAR) ---
+def calculate_price(amount_str: str) -> int:
+    base_price = BASE_STARS_PRICES[amount_str]
+    discount = get_discount()
+    final_price = base_price * (100 - discount) / 100
+    return int(final_price * 100)
+
+def get_stars_keyboard():
+    discount = get_discount()
+    kb = []
+    keys = list(BASE_STARS_PRICES.keys())
+    for i in range(0, len(keys), 2):
+        row = []
+        for j in range(2):
+            if i + j < len(keys):
+                amt = keys[i + j]
+                original = BASE_STARS_PRICES[amt]
+                current = int(original * (100 - discount) / 100)
+                
+                if discount > 0:
+                    text = f"⭐ {amt} - ~{original:,}~ {current:,} so'm 🔥"
+                else:
+                    text = f"⭐ {amt} - {current:,} so'm"
+                
+                row.append(InlineKeyboardButton(text=text, callback_data=f"buy_{amt}"))
+        kb.append(row)
+        
+    kb.append([InlineKeyboardButton(text="⬅️ Orqaga (Asosiy menyu)", callback_data="back_main")])
+    return InlineKeyboardMarkup(inline_keyboard=kb)
+
+# --- ASOSIY MENYU ---
 main_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🌟 Stars sotib olish", callback_data="menu_stars")],
-    [InlineKeyboardButton(text="💎 Premium sotib olish", callback_data="menu_premium")],
+    [InlineKeyboardButton(text="🌟 Telegram Stars", callback_data="menu_stars")],
+    [InlineKeyboardButton(text="💎 Telegram Premium", callback_data="menu_premium")],
     [InlineKeyboardButton(text="👨‍💻 Admin bilan bog'lanish", callback_data="menu_admin")]
 ])
 
-stars_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="⭐ 50 - 10 900 so'm", callback_data="buy_50"), InlineKeyboardButton(text="⭐ 75 - 16 350 so'm", callback_data="buy_75")],
-    [InlineKeyboardButton(text="⭐ 100 - 21 800 so'm", callback_data="buy_100"), InlineKeyboardButton(text="⭐ 150 - 32 700 so'm", callback_data="buy_150")],
-    [InlineKeyboardButton(text="⭐ 200 - 43 600 so'm", callback_data="buy_200"), InlineKeyboardButton(text="⭐ 250 - 54 500 so'm", callback_data="buy_250")],
-    [InlineKeyboardButton(text="⭐ 300 - 65 400 so'm", callback_data="buy_300"), InlineKeyboardButton(text="⭐ 400 - 87 200 so'm", callback_data="buy_400")],
-    [InlineKeyboardButton(text="⭐ 500 - 109 000 so'm", callback_data="buy_500"), InlineKeyboardButton(text="⭐ 750 - 163 500 so'm", callback_data="buy_750")],
-    [InlineKeyboardButton(text="⭐ 1000 - 218 000 so'm", callback_data="buy_1000")],
-    [InlineKeyboardButton(text="⬅️ Orqaga (Asosiy menyu)", callback_data="back_main")]
-])
-
+# PREMIUM BO'LIMI MENYusi (Alohida)
 premium_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💎 1 Month (Login) - 42 000 UZS", callback_data="prem_1")],
     [InlineKeyboardButton(text="💎 3 Months - 165 000 UZS", callback_data="prem_3")],
@@ -91,6 +130,21 @@ invoice_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⬅️ Orqaga (Bekor qilish)", callback_data="cancel_invoice")]
 ])
 
+# Admin uchun chegirma tanlash tugmalari
+def get_admin_keyboard():
+    current = get_discount()
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=f"{'✅ ' if current==5 else ''}5%", callback_data="set_disc_5"),
+            InlineKeyboardButton(text=f"{'✅ ' if current==10 else ''}10%", callback_data="set_disc_10"),
+            InlineKeyboardButton(text=f"{'✅ ' if current==20 else ''}20%", callback_data="set_disc_20"),
+            InlineKeyboardButton(text=f"{'✅ ' if current==30 else ''}30%", callback_data="set_disc_30")
+        ],
+        [
+            InlineKeyboardButton(text=f"{'✅ ' if current==0 else ''}❌ Chegirmani o'chirish (0%)", callback_data="set_disc_0")
+        ]
+    ])
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     add_user(message.from_user.id, message.from_user.username)
@@ -100,8 +154,32 @@ async def cmd_start(message: types.Message):
 async def cmd_admin(message: types.Message, state: FSMContext):
     if message.from_user.id == ADMIN_ID:
         users_count = len(get_all_users())
-        await message.answer(f"👑 Admin panel!\n📊 Mijozlar: {users_count} ta.\nXabar yuborish uchun matn yoki rasm tashlang:")
+        current_disc = get_discount()
+        text = (
+            f"👑 **Admin panel!**\n"
+            f"📊 Mijozlar: {users_count} ta\n"
+            f"🔥 Stars bo'yicha hozirgi chegirma: **{current_disc}%**\n\n"
+            f"👇 Chegirma foizini tanlang yoki xabar yuborish uchun matn/rasm tashlang:"
+        )
+        await message.answer(text, reply_markup=get_admin_keyboard(), parse_mode="Markdown")
         await state.set_state(AdminPanel.xabar_kutish)
+
+@dp.callback_query(F.data.startswith("set_disc_"))
+async def process_set_discount_callback(callback: types.CallbackQuery):
+    if callback.from_user.id == ADMIN_ID:
+        percent = int(callback.data.split("_")[2])
+        set_discount(percent)
+        current_disc = get_discount()
+        users_count = len(get_all_users())
+        
+        text = (
+            f"👑 **Admin panel!**\n"
+            f"📊 Mijozlar: {users_count} ta\n"
+            f"🔥 Stars bo'yicha hozirgi chegirma: **{current_disc}%** (Muvaffaqiyatli o'rnatildi! ✅)\n\n"
+            f"👇 Chegirma foizini tanlang yoki xabar yuborish uchun matn/rasm tashlang:"
+        )
+        await callback.message.edit_text(text, reply_markup=get_admin_keyboard(), parse_mode="Markdown")
+        await callback.answer(f"Chegirma {percent}% ga o'zgartirildi!")
 
 @dp.message(AdminPanel.xabar_kutish)
 async def send_broadcast(message: types.Message, state: FSMContext):
@@ -118,27 +196,30 @@ async def send_broadcast(message: types.Message, state: FSMContext):
     await message.answer(f"✅ Xabar jami {count} ta foydalanuvchiga yuborildi!")
     await state.clear()
 
+# --- STARS BO'LIMI ---
 @dp.callback_query(F.data == "menu_stars")
 async def show_stars(callback: types.CallbackQuery):
-    await callback.message.edit_text("Qancha yulduzcha xarid qilmoqchisiz?", reply_markup=stars_keyboard)
+    disc = get_discount()
+    text = f"🌟 **Telegram Stars (Yulduzchalar) bo'limi**\n\nHozirgi chegirma: **{disc}%**\nKerakli miqdorni tanlang:"
+    await callback.message.edit_text(text, reply_markup=get_stars_keyboard(), parse_mode="Markdown")
 
+# --- PREMIUM BO'LIMI ---
 @dp.callback_query(F.data == "menu_premium")
 async def show_premium(callback: types.CallbackQuery):
     text = (
-        "💎 **Telegram Premium Pricing & Methods:**\n\n"
-        "1️⃣ **Login Required (Cheaper option):**\n"
-        "• Price: **42,000 UZS** per month\n"
-        "*(We log into your account securely to activate).*-\n\n"
-        "2️⃣ **Without Login (Gift method - Safe):**\n"
-        "• **3 Months:** 165,000 UZS\n"
-        "• **6 Months:** 220,000 UZS\n"
-        "• **1 Year:** 400,000 UZS\n"
-        "*(Sent directly as a Telegram Gift).*\n\n"
-        "Buyurtma berish uchun quyidagi tugmalardan birini bosing:"
+        "💎 **Telegram Premium bo'limi & Shartlari:**\n\n"
+        "1️⃣ **Login Required (Arzonroq variant):**\n"
+        "• Narxi: **42,000 UZS** (1 oylik)\n"
+        "*(Faollashtirish uchun profilingizga qisqa muddatga kiriladi).*-\n\n"
+        "2️⃣ **Without Login (Sovg'a usuli - Xavfsiz):**\n"
+        "• **3 Oylik:** 165,000 UZS\n"
+        "• **6 Oylik:** 220,000 UZS\n"
+        "• **1 Yillik:** 400,000 UZS\n"
+        "*(Telegram orqali to'g'ridan-to'g'ri Gift qilib yuboriladi).*\n\n"
+        "Kerakli muddatni tanlang:"
     )
     await callback.message.edit_text(text, reply_markup=premium_keyboard, parse_mode="Markdown")
 
-# --- PREMIUM TUGMALARI BOSILGANDA ---
 @dp.callback_query(F.data.startswith("prem_"))
 async def process_premium_buy(callback: types.CallbackQuery):
     plan = callback.data.split("_")[1]
@@ -154,15 +235,12 @@ async def process_premium_buy(callback: types.CallbackQuery):
     else:
         plan_name = "Telegram Premium"
 
-    # Mijozning username'i bormi-yo'qligini tekshiramiz
     user = callback.from_user
     if user.username:
         user_link = f"@{user.username}"
     else:
-        # Username bo'lmasa ismini bosiladigan ssilka qilamiz
-        user_link = f"<a href='tg://user?id={user.id}'>{user.first_name}</a> (Username yo'q)"
+        user_link = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
 
-    # Adminga xabar yuborish
     admin_text = (
         f"💎 YANGI PREMIUM BUYURTMA!\n"
         f"👤 Mijoz: {user_link}\n"
@@ -172,7 +250,6 @@ async def process_premium_buy(callback: types.CallbackQuery):
     )
     await bot.send_message(chat_id=ADMIN_ID, text=admin_text, parse_mode="HTML")
 
-    # Mijozga javob
     await callback.message.edit_text(
         f"✅ Siz **{plan_name}** tanladingiz!\n\n"
         f"Buyurtmangiz adminga yuborildi. Admin tez orada siz bilan bog'lanadi (@wrlpsew).\n"
@@ -192,16 +269,21 @@ async def go_back_main(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("buy_"))
 async def process_buy(callback: types.CallbackQuery):
     amount = callback.data.split("_")[1]
-    price_tiyin = STARS_PRICES[amount]
+    price_tiyin = calculate_price(amount)
+    
+    base_val = BASE_STARS_PRICES[amount]
+    disc = get_discount()
+    curr_val = int(base_val * (100 - disc) / 100)
+
     await callback.message.delete()
     await bot.send_invoice(
         chat_id=callback.from_user.id,
         title=f"⭐ {amount} ta Telegram Stars",
-        description=f"{amount} ta Telegram yulduzchasini xarid qilish uchun to'lov.",
+        description=f"{amount} ta yulduzcha xaridi (Chegirma: {disc}%).",
         payload=f"stars_{amount}",
         provider_token=CLICK_TOKEN,
         currency="UZS",
-        prices=[LabeledPrice(label=f"{amount} Stars", amount=price_tiyin)],
+        prices=[LabeledPrice(label=f"{amount} Stars ({curr_val:,} so'm)", amount=price_tiyin)],
         start_parameter="stars_payment",
         reply_markup=invoice_keyboard
     )
@@ -243,4 +325,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-                   
+    
