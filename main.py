@@ -36,7 +36,6 @@ BOT_TOKEN = '8787340263:AAH73q3AYz8AY5YL3yA1DWGxItPPfhat_wk'
 CLICK_TOKEN = '398062629:TEST:999999999_F91D8F69C042267444B74CC0B3C747757EB0E065'
 ADMIN_ID = 1847219629 
 
-# Proxy yo'q, Render o'zi to'g'ridan-to'g'ri ulanadi
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -135,9 +134,43 @@ async def show_premium(callback: types.CallbackQuery):
         "• **6 Months:** 220,000 UZS\n"
         "• **1 Year:** 400,000 UZS\n"
         "*(Sent directly as a Telegram Gift).*\n\n"
-        "Buyurtma berish uchun adminga yozing!"
+        "Buyurtma berish uchun quyidagi tugmalardan birini bosing:"
     )
     await callback.message.edit_text(text, reply_markup=premium_keyboard, parse_mode="Markdown")
+
+# --- PREMIUM TUGMALARI BOSILGANDA ISHLaydigan QISM ---
+@dp.callback_query(F.data.startswith("prem_"))
+async def process_premium_buy(callback: types.CallbackQuery):
+    plan = callback.data.split("_")[1]
+    
+    if plan == "1":
+        plan_name = "1 Month (Login Required) - 42 000 UZS"
+    elif plan == "3":
+        plan_name = "3 Months - 165 000 UZS"
+    elif plan == "6":
+        plan_name = "6 Months - 220 000 UZS"
+    elif plan == "12":
+        plan_name = "1 Year - 400 000 UZS"
+    else:
+        plan_name = "Telegram Premium"
+
+    # Adminga xabar yuborish
+    admin_text = (
+        f"💎 YANGI PREMIUM BUYURTMA!\n"
+        f"👤 Mijoz: @{callback.from_user.username} (ID: {callback.from_user.id})\n"
+        f"📦 Reja: {plan_name}\n"
+        f"Mijoz bilan bog'lanib, to'lov va faollashtirishni amalga oshiring!"
+    )
+    await bot.send_message(chat_id=ADMIN_ID, text=admin_text)
+
+    # Mijozga javob
+    await callback.message.edit_text(
+        f"✅ Siz **{plan_name}** tanladingiz!\n\n"
+        f"Buyurtmangiz adminga yuborildi. Admin tez orada siz bilan bog'lanadi (@wrlpsew).\n"
+        f"Telefon: +998930657103",
+        reply_markup=back_keyboard,
+        parse_mode="Markdown"
+    )
 
 @dp.callback_query(F.data == "menu_admin")
 async def show_admin_contact(callback: types.CallbackQuery):
@@ -194,4 +227,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-                     
+    
