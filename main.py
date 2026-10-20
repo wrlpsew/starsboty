@@ -6,7 +6,6 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BotCommand, LabeledPrice, PreCheckoutQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.client.session.aiohttp import AiohttpSession 
 
 # --- MA'LUMOTLAR BAZASI ---
 conn = sqlite3.connect('bot_baza.db')
@@ -32,13 +31,13 @@ def get_all_users():
     cursor.execute("SELECT user_id FROM users")
     return [row[0] for row in cursor.fetchall()]
 
-# --- BOT, CLICK VA PROXY SOZLAMALARI ---
+# --- BOT VA CLICK SOZLAMALARI ---
 BOT_TOKEN = '8787340263:AAH73q3AYz8AY5YL3yA1DWGxItPPfhat_wk'
 CLICK_TOKEN = '398062629:TEST:999999999_F91D8F69C042267444B74CC0B3C747757EB0E065'
 ADMIN_ID = 1847219629 
 
-session = AiohttpSession(proxy="http://proxy.server:3128")
-bot = Bot(token=BOT_TOKEN, session=session)
+# Proxy yo'q, Render o'zi to'g'ridan-to'g'ri ulanadi
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 # --- HOLATLAR ---
@@ -61,15 +60,12 @@ STARS_PRICES = {
 }
 
 # --- TUGMALAR (MENYULAR) ---
-
-# 1. Asosiy menyu
 main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🌟 Stars sotib olish", callback_data="menu_stars")],
     [InlineKeyboardButton(text="💎 Premium sotib olish", callback_data="menu_premium")],
     [InlineKeyboardButton(text="👨‍💻 Admin bilan bog'lanish", callback_data="menu_admin")]
 ])
 
-# 2. Stars menyusi
 stars_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⭐ 50 - 10 900 so'm", callback_data="buy_50"), InlineKeyboardButton(text="⭐ 75 - 16 350 so'm", callback_data="buy_75")],
     [InlineKeyboardButton(text="⭐ 100 - 21 800 so'm", callback_data="buy_100"), InlineKeyboardButton(text="⭐ 150 - 32 700 so'm", callback_data="buy_150")],
@@ -80,32 +76,27 @@ stars_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⬅️ Orqaga (Asosiy menyu)", callback_data="back_main")]
 ])
 
-# 3. Premium menyusi
 premium_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="💎 1 Oy - 45 000 so'm", callback_data="prem_1")],
-    [InlineKeyboardButton(text="💎 6 Oy - 190 000 so'm", callback_data="prem_6")],
-    [InlineKeyboardButton(text="💎 1 Yil - 330 000 so'm", callback_data="prem_12")],
+    [InlineKeyboardButton(text="💎 1 Month (Login) - 42 000 UZS", callback_data="prem_1")],
+    [InlineKeyboardButton(text="💎 3 Months - 165 000 UZS", callback_data="prem_3")],
+    [InlineKeyboardButton(text="💎 6 Months - 220 000 UZS", callback_data="prem_6")],
+    [InlineKeyboardButton(text="💎 1 Year - 400 000 UZS", callback_data="prem_12")],
     [InlineKeyboardButton(text="⬅️ Orqaga (Asosiy menyu)", callback_data="back_main")]
 ])
 
-# 4. Orqaga tugmasi
 back_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⬅️ Orqaga (Asosiy menyu)", callback_data="back_main")]
 ])
 
-# 5. Invoys (chek) tagidagi orqaga
 invoice_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⬅️ Orqaga (Bekor qilish)", callback_data="cancel_invoice")]
 ])
 
-
-# --- BUYRUQLAR VA ASOSIY MENYU ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     add_user(message.from_user.id, message.from_user.username)
     await message.answer("Salom! Telegram xizmatlari do'koniga xush kelibsiz.\nQuyidagi bo'limlardan birini tanlang:", reply_markup=main_menu)
 
-# Admin panel
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message, state: FSMContext):
     if message.from_user.id == ADMIN_ID:
@@ -128,34 +119,39 @@ async def send_broadcast(message: types.Message, state: FSMContext):
     await message.answer(f"✅ Xabar jami {count} ta foydalanuvchiga yuborildi!")
     await state.clear()
 
-
-# --- MENYU TUGMALARI BOSILGANDA ---
 @dp.callback_query(F.data == "menu_stars")
 async def show_stars(callback: types.CallbackQuery):
     await callback.message.edit_text("Qancha yulduzcha xarid qilmoqchisiz?", reply_markup=stars_keyboard)
 
 @dp.callback_query(F.data == "menu_premium")
 async def show_premium(callback: types.CallbackQuery):
-    await callback.message.edit_text("Premium obuna muddatini tanlang:", reply_markup=premium_keyboard)
+    text = (
+        "💎 **Telegram Premium Pricing & Methods:**\n\n"
+        "1️⃣ **Login Required (Cheaper option):**\n"
+        "• Price: **42,000 UZS** per month\n"
+        "*(We log into your account securely to activate).*-\n\n"
+        "2️⃣ **Without Login (Gift method - Safe):**\n"
+        "• **3 Months:** 165,000 UZS\n"
+        "• **6 Months:** 220,000 UZS\n"
+        "• **1 Year:** 400,000 UZS\n"
+        "*(Sent directly as a Telegram Gift).*\n\n"
+        "Buyurtma berish uchun adminga yozing!"
+    )
+    await callback.message.edit_text(text, reply_markup=premium_keyboard, parse_mode="Markdown")
 
 @dp.callback_query(F.data == "menu_admin")
 async def show_admin_contact(callback: types.CallbackQuery):
-    # ADMIN MA'LUMOTLARI SHU YERGA KIRITILDI:
     await callback.message.edit_text("Savol yoki muammolar bo'yicha adminga murojaat qiling:\n\n👨‍💻 Admin: @wrlpsew\n📞 Tel: +998930657103", reply_markup=back_keyboard)
 
 @dp.callback_query(F.data == "back_main")
 async def go_back_main(callback: types.CallbackQuery):
     await callback.message.edit_text("Quyidagi bo'limlardan birini tanlang:", reply_markup=main_menu)
 
-
-# --- TO'LOV JARAYONI (INVOICE) ---
 @dp.callback_query(F.data.startswith("buy_"))
 async def process_buy(callback: types.CallbackQuery):
     amount = callback.data.split("_")[1]
     price_tiyin = STARS_PRICES[amount]
-    
     await callback.message.delete()
-    
     await bot.send_invoice(
         chat_id=callback.from_user.id,
         title=f"⭐ {amount} ta Telegram Stars",
@@ -180,13 +176,11 @@ async def pre_checkout_process(pre_checkout: PreCheckoutQuery):
 @dp.message(F.successful_payment)
 async def successful_payment_process(message: types.Message):
     amount = message.successful_payment.invoice_payload.split("_")[1]
-    
     admin_text = (f"✅ YANGI TO'LOV (CLICK)!\n"
                   f"👤 Mijoz: @{message.from_user.username} (ID: {message.from_user.id})\n"
                   f"💰 Xarid qildi: {amount} Stars\n"
                   f"To'lov muvaffaqiyatli o'tdi. Mijozga yulduzchalarni tashlab bering!")
     await bot.send_message(chat_id=ADMIN_ID, text=admin_text)
-    
     await message.answer("✅ To'lovingiz qabul qilindi!\nTez orada adminga xabar boradi va yulduzchalar profilingizga yuboriladi.")
 
 async def main():
@@ -200,3 +194,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+                     
