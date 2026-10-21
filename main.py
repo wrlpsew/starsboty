@@ -115,7 +115,7 @@ main_menu = InlineKeyboardMarkup(inline_keyboard=[
 
 # PREMIUM BO'LIMI MENYUSI
 premium_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="💎 1 Month (Login) - 42 000 UZS", callback_data="prem_1")],
+    [InlineKeyboardButton(text="💎 1 Month (Login) - 40 000 UZS", callback_data="prem_1")],
     [InlineKeyboardButton(text="💎 3 Months - 165 000 UZS", callback_data="prem_3")],
     [InlineKeyboardButton(text="💎 6 Months - 220 000 UZS", callback_data="prem_6")],
     [InlineKeyboardButton(text="💎 1 Year - 400 000 UZS", callback_data="prem_12")],
@@ -242,7 +242,7 @@ async def show_premium(callback: types.CallbackQuery):
     text = (
         "💎 **Telegram Premium bo'limi & Shartlari:**\n\n"
         "1️⃣ **Login Required (Arzonroq variant):**\n"
-        "• Narxi: **42,000 UZS** (1 oylik)\n"
+        "• Narxi: **40,000 UZS** (1 oylik)\n"
         "*(Faollashtirish uchun profilingizga qisqa muddatga kiriladi).*-\n\n"
         "2️⃣ **Without Login (Sovg'a usuli - Xavfsiz):**\n"
         "• **3 Oylik:** 165,000 UZS\n"
@@ -258,7 +258,7 @@ async def process_premium_buy(callback: types.CallbackQuery):
     plan = callback.data.split("_")[1]
     
     if plan == "1":
-        plan_name = "1 Month (Login Required) - 42 000 UZS"
+        plan_name = "1 Month (Login Required) - 40 000 UZS"
     elif plan == "3":
         plan_name = "3 Months - 165 000 UZS"
     elif plan == "6":
